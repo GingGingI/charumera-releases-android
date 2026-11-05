@@ -6,6 +6,8 @@ v0.1.6부터 앱이 [업데이트 정보](https://github.com/GingGingI/charumera
 
 각 릴리스에는 정식 키로 서명한 APK와 버전, 파일 크기, SHA-256이 담긴 `latest.json`이 있어.
 
+태그와 릴리스 제목은 `vX.Y.Z` 형식만 사용해. `챠리메라 Android` 같은 접두사는 붙이지 않아.
+
 ## 확인 중인 설치 문제
 
 2026-11-05에 Google Play API 34 에뮬레이터의 Play Protect 실시간 검사가 v0.1.6을 `POTENTIALLY_UNWANTED / generic_malware`로 분류해 설치를 차단했어. 서명과 배포 파일의 해시 일치는 확인했고, Google의 상세 판정 원인과 실제 기기 설치 결과는 확인 중이야.

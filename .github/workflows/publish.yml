@@ -33,12 +33,12 @@ jobs:
           else
             release=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
               -f tag_name="$tag" -f target_commitish=main -F draft=true \
-              -f name="챠리메라 Android $tag" -f body="안드로이드용 서명 APK. 기존 앱 위에 설치하면 돼.")
+              -f name="$tag" -f body="안드로이드용 서명 APK. 기존 앱 위에 설치하면 돼.")
           fi
           if jq -e '.draft' <<< "$release" >/dev/null; then
             gh release upload "$tag" "$apk" latest.json --clobber
             # Semver-based selection keeps an older release retry from replacing the latest feed.
-            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$(jq -r .id <<< "$release")" -F draft=false -f make_latest=legacy --silent
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$(jq -r .id <<< "$release")" -F draft=false -f name="$tag" -f make_latest=legacy --silent
           else
             # A published version is immutable. A retry may only confirm the same two assets.
             for file in "$apk" latest.json; do
