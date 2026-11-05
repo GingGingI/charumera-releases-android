@@ -28,14 +28,17 @@ jobs:
           jq -e --arg hash "$hash" --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$apk" --argjson size "$(stat -c%s "$apk")" \
             '.sha256 == $hash and .apkUrl == $url and .size == $size and .versionCode > 0' latest.json
 
-          if ! release=$(gh release view "$tag" --json databaseId,isDraft,assets 2>/dev/null); then
-            gh release create "$tag" --target main --draft --title "챠리메라 Android $tag" --notes "안드로이드용 서명 APK. 기존 앱 위에 설치하면 돼."
-            release=$(gh release view "$tag" --json databaseId,isDraft,assets)
+          if release_id=$(gh release view "$tag" --json databaseId --jq .databaseId 2>/dev/null); then
+            release=$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id")
+          else
+            release=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$tag" -f target_commitish=main -F draft=true \
+              -f name="챠리메라 Android $tag" -f body="안드로이드용 서명 APK. 기존 앱 위에 설치하면 돼.")
           fi
-          if jq -e '.isDraft' <<< "$release" >/dev/null; then
+          if jq -e '.draft' <<< "$release" >/dev/null; then
             gh release upload "$tag" "$apk" latest.json --clobber
             # Semver-based selection keeps an older release retry from replacing the latest feed.
-            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$(jq -r .databaseId <<< "$release")" -F draft=false -f make_latest=legacy --silent
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$(jq -r .id <<< "$release")" -F draft=false -f make_latest=legacy --silent
           else
             # A published version is immutable. A retry may only confirm the same two assets.
             for file in "$apk" latest.json; do
