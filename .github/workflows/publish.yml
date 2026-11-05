@@ -1,0 +1,50 @@
+name: Publish Android APK
+on:
+  push:
+    branches: ['incoming/v*']
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Verify the bundle and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd bundle
+          tag="v$(jq -er .versionName latest.json)"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$GITHUB_REF_NAME" == "incoming/$tag-"* ]]
+          apk="charumera-android-$tag.apk"
+          hash=$(sha256sum "$apk" | cut -d' ' -f1)
+          jq -e --arg hash "$hash" --arg url "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$apk" --argjson size "$(stat -c%s "$apk")" \
+            '.sha256 == $hash and .apkUrl == $url and .size == $size and .versionCode > 0' latest.json
+
+          if ! release=$(gh release view "$tag" --json databaseId,isDraft,assets 2>/dev/null); then
+            gh release create "$tag" --target main --draft --title "챠리메라 Android $tag" --notes "안드로이드용 서명 APK. 기존 앱 위에 설치하면 돼."
+            release=$(gh release view "$tag" --json databaseId,isDraft,assets)
+          fi
+          if jq -e '.isDraft' <<< "$release" >/dev/null; then
+            gh release upload "$tag" "$apk" latest.json --clobber
+            # Semver-based selection keeps an older release retry from replacing the latest feed.
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$(jq -r .databaseId <<< "$release")" -F draft=false -f make_latest=legacy --silent
+          else
+            # A published version is immutable. A retry may only confirm the same two assets.
+            for file in "$apk" latest.json; do
+              digest="sha256:$(sha256sum "$file" | cut -d' ' -f1)"
+              jq -e --arg file "$file" --arg digest "$digest" 'any(.assets[]; .name == $file and .digest == $digest)' <<< "$release" >/dev/null
+            done
+          fi
+
+      - name: Remove this completed transfer branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$GITHUB_REF_NAME" --silent
